@@ -1,0 +1,514 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r warning = FALSE}
+library("immunarch")
+library("purrr")
+library("stringr")
+library(forcats)
+library(data.table)
+library(ggpubr)
+library(scales)
+library(plotly)
+library(dplyr)
+```
+
+All Samples (H+BC) TRA and TRB 
+```{r}
+#### BLOOD
+immdata<-repLoad("/path/to/processed/data/")
+saveRDS(immdata, "immdata_BC.Rdata")
+```
+
+Low clones
+```{r}
+clones<-repExplore(immdata$data, .method = "clones")
+blood_order = arrange(clones, Clones)
+rownames(blood_order) = c()
+head(blood_order, 8)
+```
+
+# Subsample
+1. Omit 21_H, 49_H, 15_BC, 11_BC
+```{r}
+immdata$data[which(names(immdata$data) %in% c("21_A_B_H", "49_A_B_H", "15_A_B_BC", "11_A_B_BC"))] <- NULL
+
+```
+
+2. subsample
+```{r}
+sub = repSample(immdata$data, .method = "downsample", .n = 24557)
+```
+
+```{r}
+# this object will be used in the feature_filtering script as well.
+saveRDS(sub, "sub_BC.Rdata")
+```
+
+# Initial data analysis
+```{r}
+sub_h <- sub[grepl("H",names(sub))]
+sub_bc <- sub[grepl("BC",names(sub))]
+```
+
+analysis after subsampling
+sub_h and sub_bc contain both TRA and TRB
+
+0. unique
+1. top
+2. rare
+3. diversity
+    a. gini
+    b. True diversity "div"
+    c. Inverse Simpson index "inv.simp"
+    d. Gini-Simpson index "gini.simp"
+
+
+0. unique
+```{r}
+uniq_h<-repExplore(sub_h, .method = "volume")
+
+uniq_df_h <- data.frame(uniq_h)
+
+plt_uniq_h <- ggplot(uniq_df_h,aes(x=Sample,y=Volume))+
+  geom_bar(stat='identity',position='stack')+
+  labs(title = "Unique clonotypes in Healthy Donors peripheral blood", x = "Sample", y = "Count") + 
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90))+
+  theme(axis.text.x = element_blank(), panel.grid = element_blank())+
+  scale_y_continuous(labels = comma)
+
+plt_uniq_h
+```
+
+```{r}
+uniq_bc<-repExplore(sub_bc, .method = "volume")
+
+uniq_df_bc <- data.frame(uniq_bc)
+
+plt_uniq_bc <- ggplot(uniq_df_bc,aes(x=Sample,y=Volume))+
+  geom_bar(stat='identity')+
+  labs(title = "Unique clonotypes in BC peripheral blood", x = "Sample", y = "Count") +
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90))+
+  theme(axis.text.x = element_blank(),  panel.grid = element_blank())+
+  scale_y_continuous(labels = comma)
+
+plt_uniq_bc
+```
+
+t test
+```{r}
+uniq_y_h <- uniq_h$Volume
+uniq_y_bc <- uniq_bc$Volume
+
+# p-val < 0.05 --> var.equal = F 
+# else var.equal = T
+p.var <- var.test(uniq_y_h, uniq_y_bc)$p.value # 0.006
+var.equal <- p.var >= 0.05
+
+# p-val < 0.05 --> significant difference
+# else no sig dif
+t.test(uniq_y_h, uniq_y_bc, var.equal = var.equal)
+
+# p value = 0.003. significant difference!
+```
+
+
+1. top
+```{r}
+top_h <- repClonality(sub_h, .method = "top", .head= c(10,100,1000,3000,10000,30000)) 
+
+top_df <- data.frame(top_h)
+top_n <- mutate(top_df, "[11:100)" = X100 - X10, 
+                  "[101:1000)" = X1000 - X100, 
+                  "[1001:3000)" = X3000 - X1000, 
+                  "[3001:10000)" = X10000 - X3000,
+                  "[10001:30000)" = X30000 - X10000,
+                  #"[30001:1e+05)" = X1e.05 - X30000,
+                  #"[100001:3e+05)" = X3e.05 - X1e.05,
+                  "Patient_ID" = rownames(top_df),
+                  Num = as.numeric(map(str_split(Patient_ID, regex("_"),2),1)),
+                  Patient_ID = fct_reorder(Patient_ID, Num))
+
+top_n1 <- top_n[,c("Patient_ID","X10","[11:100)", "[101:1000)","[1001:3000)","[3001:10000)","[10001:30000)")] 
+top_n1 = top_n1 %>% rename( "[1:10)" = "X10")
+
+test <- reshape2::melt(top_n1)
+plt <- ggplot(test,aes(x=Patient_ID,y=value,fill=variable))+
+  geom_bar(stat='identity',position='stack')+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), complete = F, panel.grid = element_blank())+
+  labs(title = "Top clonal proportion HD", x = "Sample", y = "Occupied repertoire space") + 
+  guides(fill=guide_legend(title="Clonotype indices"))+
+  scale_fill_brewer(palette = "RdYlBu")
+plt
+```
+
+```{r}
+top_bc <- repClonality(sub_bc, .method = "top", .head= c(10,100,1000,3000,10000,30000)) 
+
+top_df_bc <- data.frame(top_bc)
+top_n_bc <- mutate(top_df_bc, "[11:100)" = X100 - X10, 
+                  "[101:1000)" = X1000 - X100, 
+                  "[1001:3000)" = X3000 - X1000, 
+                  "[3001:10000)" = X10000 - X3000,
+                  "[10001:30000)" = X30000 - X10000,
+                  #"[30001:1e+05)" = X1e.05 - X30000,
+                  #"[100001:3e+05)" = X3e.05 - X1e.05,
+                  "Patient_ID" = rownames(top_df_bc),
+                  Num = as.numeric(ifelse(str_detect(Patient_ID, "^\\d_A_B_BC"), #
+                                          map(str_split(Patient_ID, regex("_"),2),1), 
+                                          substring(map(str_split(Patient_ID, regex("_"),2),1), 2)
+                                          )
+                                   ),
+                  Patient_ID = fct_reorder(Patient_ID, Num)
+                  )
+
+top_n1_bc <- top_n_bc[,c("Patient_ID","X10","[11:100)", "[101:1000)","[1001:3000)","[3001:10000)","[10001:30000)")] # ,"[30001:1e+05)", "[100001:3e+05)"
+top_n1_bc = top_n1_bc %>% rename( "[1:10)" = "X10")
+
+test_bc <- reshape2::melt(top_n1_bc)
+plt_bc <- ggplot(test_bc,aes(x=Patient_ID,y=value,fill=variable))+
+  geom_bar(stat='identity',position='stack')+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), complete = F, panel.grid = element_blank())+
+  labs(title = "Top clonal proportion BC", x = "Sample", y = "Occupied repertoire space") + 
+  guides(fill=guide_legend(title="Clonotype indices"))+
+  scale_fill_brewer(palette = "RdYlBu")
+plt_bc
+```
+
+t test
+```{r}
+top_y_h <- top_n1$`[1:10)`
+top_y_bc <- top_n1_bc$`[1:10)`
+
+# p-val < 0.05 --> var.equal = F 
+# else var.equal = T
+p.var <- var.test(top_y_h, top_y_bc)$p.value # 0.027
+var.equal <- p.var >= 0.05
+
+# p-val < 0.05 --> significant difference
+# else no sig dif
+t.test(top_y_h, top_y_bc, var.equal = var.equal)
+
+# p-value = 0.24. no significant difference
+```
+
+
+2. rare
+```{r}
+rare_h <- repClonality(sub_h, .method = "rare") #%>% vis()
+
+rare_df_h <- data.frame(rare_h)
+rare_h_n <- mutate(rare_df_h, "2 - 3" = X3 - X1, 
+                  "4 - 10" = X10 - X3, 
+                  "11 - 30" = X30 - X10, 
+                  "31 - 100" = X100 - X30,
+                  "101 - MAX" = MAX - X100,
+                  "Patient_ID" = rownames(rare_df_h),
+                  Num = as.numeric(map(str_split(Patient_ID, regex("_"),2),1)),
+                  Patient_ID = fct_reorder(Patient_ID, Num))
+rare_h_n1 <- rare_h_n[,c("Patient_ID","X1","2 - 3", "4 - 10", "11 - 30","31 - 100","101 - MAX")]
+rare_h_n1 = rare_h_n1 %>% rename( "1" = "X1")
+test_rare_h <- reshape2::melt(rare_h_n1)
+
+plt_rare_h <- ggplot(test_rare_h,aes(x=Patient_ID,y=value,fill=variable))+
+  geom_bar(stat='identity',position='stack')+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), complete = F, panel.grid = element_blank())+
+  labs(title = "Rare clonal proportion HD", x = "Sample", y = "Occupied repertoire space") + 
+  guides(fill=guide_legend(title="Clonotype counts"))+
+  scale_fill_brewer(palette = "RdYlBu")
+
+plt_rare_h
+```
+
+```{r}
+rare_bc <- repClonality(sub_bc, .method = "rare") #%>% vis()
+
+rare_df_bc <- data.frame(rare_bc)
+rare_n_bc <- mutate(rare_df_bc, "2 - 3" = X3 - X1, 
+                  "4 - 10" = X10 - X3, 
+                  "11 - 30" = X30 - X10, 
+                  "31 - 100" = X100 - X30,
+                  "101 - MAX" = MAX - X100,
+                  "Patient_ID" = rownames(rare_df_bc),
+                  Num = as.numeric(ifelse(str_detect(Patient_ID, "^\\d_A_B_BC"), #
+                                          map(str_split(Patient_ID, regex("_"),2),1), 
+                                          substring(map(str_split(Patient_ID, regex("_"),2),1), 2)
+                                          )
+                                   ),
+                  Patient_ID = fct_reorder(Patient_ID, Num))
+rare_n1_bc <- rare_n_bc[,c("Patient_ID","X1","2 - 3", "4 - 10", "11 - 30","31 - 100","101 - MAX")]
+rare_n1_bc = rare_n1_bc %>% rename( "1" = "X1")
+test_rare_bc <- reshape2::melt(rare_n1_bc)
+
+plt_rare_bc <- ggplot(test_rare_bc,aes(x=Patient_ID,y=value,fill=variable))+
+  geom_bar(stat='identity',position='stack')+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), legend.position = "none", complete = F, panel.grid = element_blank())+
+  labs(title = "Rare clonal proportion BC", x = "Sample", y = "Occupied repertoire space") + 
+  guides(fill=guide_legend(title="Clonotype counts"))+
+  scale_fill_brewer(palette = "RdYlBu")
+plt_rare_bc
+```
+
+t test
+```{r}
+rare_y_h = rare_h_n1[,2]
+
+rare_y_bc = rare_n1_bc[,2]
+
+# p-val < 0.05 --> var.equal = F 
+# else var.equal = T
+p.var <- var.test(rare_y_h, rare_y_bc)$p.value # 0.012 
+var.equal <- p.var >= 0.05
+
+# p-val < 0.05 --> significant difference
+# else no sig dif
+t.test(rare_y_h, rare_y_bc, var.equal = var.equal)
+
+# p-value = 0.001, significant difference!
+```
+
+
+3. diversity- gini
+```{r}
+gini_h <- repDiversity(sub_h, .method = "gini", .verbose = F)
+
+gini_df_h = data.frame(gini_h)
+gini_df_h$sample <- rownames(gini_df_h)
+gini_df_h$Num = as.numeric(map(str_split(gini_df_h$sample, regex("_"),2),1))
+gini_df_h$Patient_ID = fct_reorder(gini_df_h$sample, gini_df_h$Num)
+
+plt_gini_h<- ggplot(gini_df_h, aes(Patient_ID, gini_h)) + #, fill = sample
+  geom_col()+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), complete = F, panel.grid = element_blank())+
+  labs(title = "Gini Diversity HD", x = "Sample", y = "gini index")+
+  theme(legend.position = "none")
+
+plt_gini_h
+```
+
+```{r}
+gini_bc <- repDiversity(sub_bc, .method = "gini", .verbose = F)
+
+gini_df_bc = data.frame(gini_bc)
+gini_df_bc$sample <- rownames(gini_df_bc)
+gini_df_bc$Num = as.numeric(ifelse(str_detect(gini_df_bc$sample, "^\\d_A_B_BC"), #
+                                          map(str_split(gini_df_bc$sample, regex("_"),2),1), 
+                                          substring(map(str_split(gini_df_bc$sample, regex("_"),2),1), 2)
+                                          )
+                                   )
+gini_df_bc$Patient_ID = fct_reorder(gini_df_bc$sample, gini_df_bc$Num)
+
+plt_gini_bc<- ggplot(gini_df_bc, aes(Patient_ID, gini_bc)) + #, fill = sample
+  geom_col()+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), complete = F, panel.grid = element_blank())+
+  labs(title = "Gini Diversity BC", x = "Sample", y = "gini index")+
+  theme(legend.position = "none")
+
+plt_gini_bc
+```
+
+t test
+```{r}
+gini_y_h = gini_df_h$gini_h
+
+gini_y_bc = gini_df_bc$gini_bc
+
+# p-val < 0.05 --> var.equal = F 
+# else var.equal = T
+p.var <- var.test(gini_y_h, gini_y_bc)$p.value # 0.005 
+var.equal <- p.var >= 0.05
+
+# p-val < 0.05 --> significant difference
+# else no sig dif
+t.test(gini_y_h, gini_y_bc, var.equal = var.equal)
+
+# p-value = 0.005,  significant difference!
+```
+
+
+3b. diversity - True diversity "div"
+```{r}
+true_d_h <- repDiversity(sub_h, .method = "div", .verbose = F)
+
+true_d_h$Num = as.numeric(map(str_split(true_d_h$Sample, regex("_"),2),1))
+true_d_h$Patient_ID = fct_reorder(true_d_h$Sample, true_d_h$Num)
+
+plt_trued_h<- ggplot(true_d_h, aes(Patient_ID, Value)) + #, fill = sample
+  geom_col()+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), complete = F, panel.grid = element_blank())+
+  labs(title = "True Diversity HD", x = "Sample", y = "True Diversity")+
+  theme(legend.position = "none")
+
+plt_trued_h
+```
+
+```{r}
+true_d_bc <- repDiversity(sub_bc, .method = "div", .verbose = F)
+
+true_d_bc$Num = as.numeric(ifelse(str_detect(true_d_bc$Sample, "^\\d_A_B_BC"), #
+                                          map(str_split(true_d_bc$Sample, regex("_"),2),1), 
+                                          substring(map(str_split(true_d_bc$Sample, regex("_"),2),1), 2)
+                                          )
+                                   )
+true_d_bc$Patient_ID = fct_reorder(true_d_bc$Sample, true_d_bc$Num)
+
+plt_trued_bc<- ggplot(true_d_bc, aes(Patient_ID, Value)) + #, fill = sample
+  geom_col()+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), complete = F, panel.grid = element_blank())+
+  labs(title = "True Diversity BC", x = "Sample", y = "True Diversity")+
+  theme(legend.position = "none")
+
+plt_trued_bc
+```
+
+t test
+```{r}
+trued_y_h = true_d_h$Value
+
+trued_y_bc = true_d_bc$Value
+
+# p-val < 0.05 --> var.equal = F 
+# else var.equal = T
+p.var <- var.test(trued_y_h, trued_y_bc)$p.value 
+var.equal <- p.var >= 0.05
+
+# p-val < 0.05 --> significant difference
+# else no sig dif
+t.test(gini_y_h, gini_y_bc, var.equal = var.equal)
+
+# p-value = 0.005, significant difference
+```
+
+3c. diversity - Inverse Simpson index "inv.simp"
+```{r}
+inv_h <- repDiversity(sub_h, .method = "inv.simp", .verbose = F)
+
+inv_h$Num = as.numeric(map(str_split(inv_h$Sample, regex("_"),2),1))
+inv_h$Patient_ID = fct_reorder(inv_h$Sample, inv_h$Num)
+
+plt_inv_h<- ggplot(inv_h, aes(Patient_ID, Value)) + #, fill = sample
+  geom_col()+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), complete = F, panel.grid = element_blank())+
+  labs(title = "Inverse Simpson Index Diversity HD", x = "Sample", y = "Inverse Simpson index")+
+  theme(legend.position = "none")
+
+plt_inv_h
+```
+
+```{r}
+inv_bc <- repDiversity(sub_bc, .method = "inv.simp", .verbose = F)
+
+inv_bc$Num = as.numeric(ifelse(str_detect(inv_bc$Sample, "^\\d_A_B_BC"), #
+                                          map(str_split(inv_bc$Sample, regex("_"),2),1), 
+                                          substring(map(str_split(inv_bc$Sample, regex("_"),2),1), 2)
+                                          )
+                                   )
+inv_bc$Patient_ID = fct_reorder(inv_bc$Sample, inv_bc$Num)
+
+plt_inv_bc<- ggplot(inv_bc, aes(Patient_ID, Value)) + #, fill = sample
+  geom_col()+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), complete = F, panel.grid = element_blank())+
+  labs(title = "Inverse Simpson Index Diversity BC", x = "Sample", y = "Inverse Simpson index")+
+  theme(legend.position = "none")
+
+plt_inv_bc
+```
+
+t test
+```{r}
+inv_y_h = inv_h$Value
+
+inv_y_bc = inv_bc$Value
+
+# p-val < 0.05 --> var.equal = F 
+# else var.equal = T
+p.var <- var.test(inv_y_h, inv_y_bc)$p.value 
+var.equal <- p.var >= 0.05
+
+# p-val < 0.05 --> significant difference
+# else no sig dif
+t.test(inv_y_h, inv_y_bc, var.equal = var.equal)
+
+# p-value = 0.0007, significant difference!!
+```
+
+
+3d. diversity - Gini-Simpson index "gini.simp"
+```{r}
+simp_h <- repDiversity(sub_h, .method = "gini.simp", .verbose = F)
+
+simp_h$Num = as.numeric(map(str_split(simp_h$Sample, regex("_"),2),1))
+simp_h$Patient_ID = fct_reorder(simp_h$Sample, simp_h$Num)
+
+plt_simp_h<- ggplot(simp_h, aes(Patient_ID, Value)) + #, fill = sample
+  geom_col()+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), complete = F, panel.grid = element_blank())+
+  labs(title = "Gini Simpson index Diversity HD", x = "Sample", y = "Gini-Simpson index")+
+  theme(legend.position = "none")
+
+plt_simp_h
+```
+
+```{r}
+simp_bc <- repDiversity(sub_bc, .method = "gini.simp", .verbose = F)
+
+simp_bc$Num = as.numeric(ifelse(str_detect(simp_bc$Sample, "^\\d_A_B_BC"), #
+                                          map(str_split(simp_bc$Sample, regex("_"),2),1), 
+                                          substring(map(str_split(simp_bc$Sample, regex("_"),2),1), 2)
+                                          )
+                                   )
+simp_bc$Patient_ID = fct_reorder(simp_bc$Sample, simp_bc$Num)
+
+plt_simp_bc<- ggplot(simp_bc, aes(Patient_ID, Value)) + #, fill = sample
+  geom_col()+
+  theme_bw()+
+  #theme(axis.text.x = element_text(angle = 90), complete = F, panel.grid = element_blank())+
+  theme(axis.text.x = element_blank(), complete = F, panel.grid = element_blank())+
+  labs(title = "Gini Simpson index Diversity BC", x = "Sample", y = "Gini-Simpson index")+
+  theme(legend.position = "none")
+
+plt_simp_bc
+```
+
+t test
+```{r}
+simp_y_h = simp_h$Value
+
+simp_y_bc = simp_bc$Value
+
+# p-val < 0.05 --> var.equal = F 
+# else var.equal = T
+p.var <- var.test(simp_y_h, simp_y_bc)$p.value # 0.000001 
+var.equal <- p.var >= 0.05
+
+# p-val < 0.05 --> significant difference
+# else no sig dif
+t.test(simp_y_h, simp_y_bc, var.equal = var.equal)
+
+# p-value = 0.65, no significant difference
+```
