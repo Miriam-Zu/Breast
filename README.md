@@ -32,7 +32,7 @@ The analysis includes data preprocessing, feature filtering, and machine learnin
 
 ## Machine Learning
 
-- **ML_atom_SFM_600f.ipynb** 
+- **ML_atom_BC_600.ipynb** 
   - This Jupyter Notebook contain Python scripts for machine learning.
   - The data resulting from `feature_filtering.Rmd` is processed through this notebook.
   - Machine learning algorithms are applied for classification using the `atom` package.
