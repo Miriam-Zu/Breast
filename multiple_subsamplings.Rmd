@@ -1,0 +1,95 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning = FALSE}
+library("immunarch")
+library("purrr")
+library("stringr")
+library(forcats)
+library(data.table)
+library(ggpubr)
+library(scales)
+library(plotly)
+library(dplyr)
+```
+
+All Samples (H+BC) TRA and TRB 
+```{r}
+immdata_BC <- readRDS(file="./immdata_BC.Rdata")
+```
+
+# Subsample
+1. Omit 21_H, 49_H, 15_BC, 11_BC
+```{r}
+immdata_BC$data[which(names(immdata_BC$data) %in% c("21_A_B_H", "49_A_B_H", "15_A_B_BC", "11_A_B_BC"))] <- NULL
+```
+
+2. subsample
+```{r}
+for (i in 1:4) {
+  set.seed(i)
+  sub <- repSample(immdata_BC$data, .method = "downsample", .n = 24557)
+  
+  save_path <- sprintf("/mult_subsamples/sub%d_BC.Rdata", i)
+  saveRDS(sub, save_path)
+}
+```
+
+3. Create dataframes
+```{r}
+sub1 <- readRDS(file="/mult_subsamples/sub1_BC.Rdata")
+sub2 <- readRDS(file="/mult_subsamples/sub2_BC.Rdata")
+sub3 <- readRDS(file="/mult_subsamples/sub3_BC.Rdata")
+sub4 <- readRDS(file="/mult_subsamples/sub4_BC.Rdata")
+# named list
+subs <- list(sub1 = sub1, sub2 = sub2, sub3 = sub3, sub4 = sub4)
+```
+
+```{r}
+create_600f_file <- function(sub, name){
+  folder <- "/mult_subsamples/"
+  filename <- paste0(folder, name, "_all_ab.csv")
+  
+  # generate dataframe: features x observations. 
+  # proportions of public clonotype sharing
+  public_prop <- pubRep(sub, .quant = "prop", .verbose = F, .col = "aa")
+  
+  pub_prop_df = as.data.frame(public_prop)
+  pub_prop_df[is.na(pub_prop_df)] = 0
+  pub_prop_df_wos <- subset(pub_prop_df, select = -c(Samples) )
+  
+  # transpose dataframe: observations x features
+  merged <- pub_prop_df_wos
+  merged_t <- setNames(data.frame(t(merged[,-1])), merged[,1])
+  
+  # export to csv
+  write.csv(merged_t, filename, row.names = T)
+}
+
+```
+
+```{r}
+lapply(names(subs), function(name) {
+  create_600f_file(subs[[name]], name)
+})
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
