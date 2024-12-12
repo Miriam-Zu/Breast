@@ -1,0 +1,76 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning = FALSE}
+library("immunarch")
+library(data.table)
+```
+
+```{r}
+# load object created in the immunarch_analysis script
+sub <- readRDS(file="sub_BC.Rdata")
+```
+
+# Create dataframe 
+------
+generate dataframe: features x observations. 
+proportions of public clonotype sharing
+```{r}
+public_prop <- pubRep(sub, .quant = "prop", .verbose = F, .col = "aa")
+```
+
+```{r}
+pub_prop_df = as.data.frame(public_prop)
+pub_prop_df[is.na(pub_prop_df)] = 0
+pub_prop_df_wos <- subset(pub_prop_df, select = -c(Samples) )
+```
+
+transpose dataframe: observations x features
+```{r}
+merged <- pub_prop_df_wos
+merged_t <- setNames(data.frame(t(merged[,-1])), merged[,1])
+```
+
+```{r}
+write.csv(merged_t,"/breast_project/data_ab.csv", row.names = T)
+```
+
+** Continue in python **
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
