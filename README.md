@@ -33,7 +33,7 @@ The analysis includes data preprocessing, feature filtering, and machine learnin
 
 - **ML_breast.ipynb** 
   - This Jupyter Notebook contain Python scripts for machine learning.
-  - The data resulting from `create_df.Rmd` is processed through this notebook.
+  - The data resulting from `create_df.Rmd` and `multiple_subsamplings.Rmd` are processed through this notebook.
   - Machine learning algorithms are applied for classification using the `atom` package.
 
 ## Usage
