@@ -25,16 +25,11 @@ The analysis includes data preprocessing, feature filtering, and machine learnin
 - **immunarch_analysis.Rmd:**
   - This R Markdown document performs subsampling on the concatenated data and conducts basic analyses using the `immunarch` package.
 
-### Feature Filtering
-
-- **feature_filtering.Rmd:**
-  - This R Markdown document implements a method for feature filtering on the concatenated data.
-
 ## Machine Learning
 
-- **ML_atom_BC_600.ipynb** 
+- **ML_breast.ipynb** 
   - This Jupyter Notebook contain Python scripts for machine learning.
-  - The data resulting from `feature_filtering.Rmd` is processed through this notebook.
+  - The data resulting from `immunarch_analysis.Rmd` is processed through this notebook.
   - Machine learning algorithms are applied for classification using the `atom` package.
 
 ## Usage
