@@ -42,7 +42,7 @@ sub = repSample(immdata$data, .method = "downsample", .n = 24557)
 ```
 
 ```{r}
-# this object will be used in the feature_filtering script as well.
+# this object will be used in the create_df script as well.
 saveRDS(sub, "sub_BC.Rdata")
 ```
 
