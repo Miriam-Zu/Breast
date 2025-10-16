@@ -4,6 +4,13 @@ This project involves the analysis of immune repertoire data obtained from the b
 The immune repertoire data includes T-cell receptor alpha (TRA) and beta (TRB) sequences obtained through Repertoire Sequencing (Rep-Seq). 
 The analysis includes data preprocessing, feature filtering, and machine learning for classification.
 
+This repository accompanies the publication:
+
+**Zuckerbrot-Schuldenfrei, M.**, *et al.*  
+**"Breast cancer is detectable from peripheral blood using machine learning over T cell receptor repertoires"**  
+*npj Systems Biology and Applications*, 2025.  
+[https://www.nature.com/articles/s41540-025-00573-3](https://www.nature.com/articles/s41540-025-00573-3)
+
 ## Data Collection and Processing
 
 1. **Blood Collection:**
@@ -50,4 +57,4 @@ The analysis includes data preprocessing, feature filtering, and machine learnin
 
 ## Data Availability
 
-- The raw data is available on Zenodo.
+- The raw data is available on Zenodo: [https://zenodo.org/records/10518880](https://zenodo.org/records/10518880).
