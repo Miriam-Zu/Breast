@@ -11,7 +11,7 @@ This repository accompanies the publication:
 *npj Systems Biology and Applications*, 2025.  
 [https://www.nature.com/articles/s41540-025-00573-3](https://www.nature.com/articles/s41540-025-00573-3)
 
-[design](images/Fig1.jpg)
+![design](images/Fig1.jpg)
 
 ## Data Collection and Processing
 
